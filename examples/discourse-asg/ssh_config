@@ -1,0 +1,3 @@
+Host discourse.example.net
+    identityfile /home/damian/projects/fp complete/discourse-asg/terraform-aws-foundation/examples/discourse-asg/id_rsa
+    user git
