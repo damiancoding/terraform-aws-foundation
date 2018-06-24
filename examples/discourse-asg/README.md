@@ -36,17 +36,17 @@ echo "ssl_arn = " `jl 'get "CertificateArn"' upload-gen-cert.json` >> terraform.
 ```
 
 ```
-ᐅ make render-tls-configs
+# ᐅ make render-tls-configs # FIXME: delete
 ᐅ make render-tfvars
 ᐅ make generate-ssh-key
-ᐅ make install-cfssl
-ᐅ make generate-tls-certs
-ᐅ make upload-tls-certs
-ᐅ make generate-tfvars
+# ᐅ make install-cfssl # FIXME: delete
+# ᐅ make generate-tls-certs # FIXME: delete
+# ᐅ make upload-tls-certs # FIXME: delete
+ᐅ make render-tfvars-step-2
 ᐅ make network
 ᐅ make plan
 ᐅ make apply
-ᐅ make render-ssh-config
+# ᐅ make render-ssh-config # FIXME: delete
 ```
 #### SSH Config
 

@@ -236,21 +236,21 @@ module "open-egress-rule" {
 ##################
 ## DNS setup
 
-resource "aws_route53_zone" "selected" {
+data "aws_route53_zone" "selected" {
   name = "${var.dns_zone_name}"
 }
 
 resource "aws_route53_record" "discourse" {
-  zone_id = "${aws_route53_zone.selected.zone_id}"
-  name    = "${var.discourse_name}.${aws_route53_zone.selected.name}"
+  zone_id = "${data.aws_route53_zone.selected.zone_id}"
+  name    = "${var.discourse_name}.${data.aws_route53_zone.selected.name}"
   type    = "CNAME"
   ttl     = "300"
   records = ["${module.discourse-asg.asg_name}"]
 }
 
 resource "aws_route53_record" "registry" {
-  zone_id = "${aws_route53_zone.selected.zone_id}"
-  name    = "${var.discourse_registry_name}.${aws_route53_zone.selected.name}"
+  zone_id = "${data.aws_route53_zone.selected.zone_id}"
+  name    = "${var.discourse_registry_name}.${data.aws_route53_zone.selected.name}"
   type    = "CNAME"
   ttl     = "300"
   records = ["${module.discourse-asg.asg_name}"]

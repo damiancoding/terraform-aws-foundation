@@ -1,4 +1,4 @@
-.PHONY: render-tfvars generate-ssh-key generate-tfvars network plan apply test destroy
+.PHONY: render-tfvars generate-ssh-key render-tfvars-step-2 network plan apply test destroy
 
 # all the tls things can be removed, because we don't use the ELB any more, and discourse has built in support for Let's Encrypt.
 #
@@ -8,6 +8,7 @@
 
 ## Use envsubst and project.env to render terraform-tfvars.tpl into terraform.tfvars
 render-tfvars:
+	@. ./vars.env && ./checkvars
 	@. ./vars.env && envsubst <terraform-tfvars.tpl > terraform.tfvars
 
 ## Use ssh-keygen to generate a keypair for SSH
@@ -16,7 +17,7 @@ generate-ssh-key:
 
 # TODO: can this be removed after we removed the ssh config target?
 ## write out a tfvars file for a test deploy
-generate-tfvars:
+render-tfvars-step-2:
 	@echo "ssh_pubkey = \"./id_rsa.pub\"" >> terraform.tfvars
 
 ## Use Terraform to create the VPC and core network resources in a specific order
