@@ -1,4 +1,4 @@
-.PHONY: render-tfvars generate-ssh-key render-tfvars-step-2 network plan apply test destroy clean-files clean
+.PHONY: generate-ssh-key render-tfvars render-tfvars-step-2 network plan apply test destroy clean-files clean
 
 # all the tls things can be removed, because we don't use the ELB any more, and discourse has built in support for Let's Encrypt.
 #
@@ -6,14 +6,14 @@
 
 .DEFAULT_GOAL = help
 
+## Use ssh-keygen to generate a keypair for SSH
+generate-ssh-key:
+	@ssh-keygen -q -N "" -b 4096 -C "test" -f ./id_rsa
+
 ## Use envsubst and project.env to render terraform-tfvars.tpl into terraform.tfvars
 render-tfvars:
 	@. ./vars.env && ./checkvars
 	@. ./vars.env && envsubst <terraform-tfvars.tpl > terraform.tfvars
-
-## Use ssh-keygen to generate a keypair for SSH
-generate-ssh-key:
-	@ssh-keygen -q -N "" -b 4096 -C "test" -f ./id_rsa
 
 # TODO: move generate-ssh-key before render-tfvars (also in the README) and
 # join both steps in render-tfvars together.
