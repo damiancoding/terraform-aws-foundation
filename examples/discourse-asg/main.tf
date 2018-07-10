@@ -27,12 +27,6 @@ variable "discourse_name" {
   type        = "string"
 }
 
-variable "discourse_registry_name" {
-  description = "To generate the DNS record for the docker registry, prefix the zone"
-  default     = "registry"
-  type        = "string"
-}
-
 variable "root_volume_size" {
   default     = "30"
   description = "GB of root data volume for the instance, make it larger than usual for docker builds"
@@ -58,39 +52,20 @@ resource "aws_eip" "discourse" {
   vpc = true
 }
 
-resource "aws_security_group" "discourse-elb" {
-  name        = "discourse-elb"
-  vpc_id      = "${module.vpc.vpc_id}"
-  description = "Security group for the discourse ELB"
+resource "aws_iam_role_policy" "associate_eip" {
+  role = "${module.discourse-asg.asg_iam_role_name}"
+  policy = <<POLICY
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "ec2:AssociateAddress",
+            "Resource": "*"
+        }
+    ]
 }
-
-module "elb-http-rule" {
-  source            = "../../modules/single-port-sg"
-  port              = 80
-  description       = "Allow ingress for HTTP, port 80 (TCP), thru the ELB"
-  cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = "${aws_security_group.discourse-elb.id}"
-}
-
-module "elb-https-rule" {
-  source            = "../../modules/single-port-sg"
-  port              = 443
-  description       = "Allow ingress for HTTPS, port 443 (TCP), thru the ELB"
-  cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = "${aws_security_group.discourse-elb.id}"
-}
-
-module "elb-discourse-ssh-rule" {
-  source            = "../../modules/single-port-sg"
-  port              = 22
-  description       = "Allow ingress for Git over SSH, port 22 (TCP), thru the ELB"
-  cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = "${aws_security_group.discourse-elb.id}"
-}
-
-module "elb-open-egress-rule" {
-  source            = "../../modules/open-egress-sg"
-  security_group_id = "${aws_security_group.discourse-elb.id}"
+POLICY
 }
 
 module "discourse-asg" {
@@ -131,21 +106,6 @@ END_RC_LOCAL
 END_INIT
 
 
-/* the below code is unused after Manny provided new init_suffix. */
-/*
-  init_suffix = <<END_INIT
-mkdir -p /gitlab
-mount /dev/xvdf1 /gitlab
-
-cp /etc/fstab /etc/fstab.orig
-echo "LABEL=gitlab            /gitlab  ext4   defaults,nofail     0 2" >> /etc/fstab
-
-apt-get install -y docker docker.io
-${module.init-gitlab-docker.init_snippet}
-${module.init-gitlab-runner.init_snippet}
-END_INIT
-*/
-
 }
 
 module "init-install-awscli" {
@@ -155,33 +115,6 @@ module "init-install-awscli" {
 module "init-install-ops" {
   source = "../../modules/init-snippet-install-ops"
 }
-
-/* FIXME: create ../../modules/init-snippet-discourse-docker based on the
-* gitlab one. Better yet, use Discourse's launcher script which takes care of
-* setting up the docker.
-*
-* The below code is unused after Manny provided a new init_suffix for the
-* module discourse-asg. */
-/*
-module "init-discourse-docker" {
-  source        = "../../modules/init-snippet-gitlab-docker"
-  discourse_domain = "${var.dns_zone_name}"
-}
-*/
-
-/* unused, after Manny provided new init_suffix for discourse-asg: */
-/*
-module "init-discourse-runner" {
-  source = "../../tf-modules/init-snippet-exec"
-
-  init = <<END_INIT
-mkdir /etc/gitlab-runner
-cp /gitlab/gitlab-runner-config.toml /etc/gitlab-runner/config.toml
-curl -L https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.deb.sh |  bash
-apt-get install -y gitlab-runner
-END_INIT
-}
-*/
 
 module "vpc" {
   source              = "../../modules/vpc-scenario-1"
@@ -220,14 +153,6 @@ module "https-rule" {
   security_group_id = "${aws_security_group.discourse.id}"
 }
 
-module "discourse-ssh-rule" {
-  source            = "../../modules/single-port-sg"
-  port              = 8022
-  description       = "Allow ingress for Git over SSH, port 8022 (TCP)"
-  cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = "${aws_security_group.discourse.id}"
-}
-
 module "open-egress-rule" {
   source            = "../../modules/open-egress-sg"
   security_group_id = "${aws_security_group.discourse.id}"
@@ -243,17 +168,68 @@ data "aws_route53_zone" "selected" {
 resource "aws_route53_record" "discourse" {
   zone_id = "${data.aws_route53_zone.selected.zone_id}"
   name    = "${var.discourse_name}.${data.aws_route53_zone.selected.name}"
-  type    = "CNAME"
+  type    = "A"
   ttl     = "300"
-  records = ["${module.discourse-asg.asg_name}"]
+  records = ["${aws_eip.discourse.public_ip}"]
 }
 
-resource "aws_route53_record" "registry" {
+##################
+## SES SMTP setup
+
+resource "aws_ses_domain_identity" "main" {
+  domain = "${var.discourse_name}.${data.aws_route53_zone.selected.name}"
+}
+
+resource "aws_route53_record" "amazonses_verification_record" {
   zone_id = "${data.aws_route53_zone.selected.zone_id}"
-  name    = "${var.discourse_registry_name}.${data.aws_route53_zone.selected.name}"
+  name    = "_amazonses.${aws_ses_domain_identity.main.id}"
+  type    = "TXT"
+  ttl     = "600"
+  records = ["${aws_ses_domain_identity.main.verification_token}"]
+}
+
+resource "aws_ses_domain_identity_verification" "main" {
+  domain     = "${aws_ses_domain_identity.main.id}"
+  depends_on = ["aws_route53_record.amazonses_verification_record"]
+}
+
+resource "aws_ses_domain_dkim" "main" {
+  domain = "${aws_ses_domain_identity.main.domain}"
+}
+
+resource "aws_route53_record" "dkim_amazonses_verification_record" {
+  count   = 3
+  zone_id = "${data.aws_route53_zone.selected.zone_id}"
+  name    = "${element(aws_ses_domain_dkim.main.dkim_tokens, count.index)}._domainkey.${var.discourse_name}.${data.aws_route53_zone.selected.name}"
   type    = "CNAME"
-  ttl     = "300"
-  records = ["${module.discourse-asg.asg_name}"]
+  ttl     = "600"
+  records = ["${element(aws_ses_domain_dkim.main.dkim_tokens, count.index)}.dkim.amazonses.com"]
+}
+
+resource "aws_iam_user" "smtp" {
+  name = "${var.name}-smtp"
+}
+
+resource "aws_iam_user_policy" "smtp_ses_send_raw_email" {
+  name = "ses-send-raw-email"
+  user = "${aws_iam_user.smtp.name}"
+
+  policy = <<POLICY
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "ses:SendRawEmail",
+      "Resource": "*"
+    }
+  ]
+}
+POLICY
+}
+
+resource "aws_iam_access_key" "smtp" {
+  user    = "${aws_iam_user.smtp.name}"
 }
 
 ##################
@@ -274,7 +250,17 @@ output "discourse_url" {
   description = "URL to Discourse"
 }
 
-output "registry_url" {
-  value       = "${aws_route53_record.registry.name}"
-  description = "URL to docker image registry"
+output "discourse_eip" {
+  value       = "${aws_eip.discourse.public_ip}"
+  description = "Discourse Elastic IP"
+}
+
+output "smtp_username" {
+  value       = "${aws_iam_access_key.smtp.id}"
+  description = "Amazon SES SMTP username"
+}
+
+output "smtp_password" {
+  value       = "${aws_iam_access_key.smtp.ses_smtp_password}"
+  description = "Amazon SES SMTP password"
 }

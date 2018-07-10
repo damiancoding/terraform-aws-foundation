@@ -1,4 +1,4 @@
-.PHONY: render-tfvars generate-ssh-key render-tfvars-step-2 network plan apply test destroy
+.PHONY: render-tfvars generate-ssh-key render-tfvars-step-2 network plan apply test destroy clean-files clean
 
 # all the tls things can be removed, because we don't use the ELB any more, and discourse has built in support for Let's Encrypt.
 #
@@ -15,7 +15,8 @@ render-tfvars:
 generate-ssh-key:
 	@ssh-keygen -q -N "" -b 4096 -C "test" -f ./id_rsa
 
-# TODO: can this be removed after we removed the ssh config target?
+# TODO: move generate-ssh-key before render-tfvars (also in the README) and
+# join both steps in render-tfvars together.
 ## write out a tfvars file for a test deploy
 render-tfvars-step-2:
 	@echo "ssh_pubkey = \"./id_rsa.pub\"" >> terraform.tfvars
@@ -70,13 +71,16 @@ docker-login:
 destroy:
 	@terraform destroy -force
 
+clean: destroy clean-files
+
 ## rm -rf everything
-clean: destroy
+clean-files:
 	@rm -rf terraform.tfstate terraform.tfstate.backup .terraform
 	@rm -rf id_rsa id_rsa.pub ssh_config
 	@rm -rf tf.out terraform.tfvars
 	@echo "You need to manually delete your certificate from AWS and then delete following files:"
-	@echo "'cert-csr.json' 'ca-csr.json' 'ca.csr' 'upload-gen-cert.json' 'upload-gen-cert.sh' 'discourse.csr' '*.pem'"
+	@echo "cert-csr.json ca-csr.json ca.csr upload-gen-cert.json upload-gen-cert.sh discourse.csr *.pem"
+# FIXME: remove the csr related stuff above (the last 2 lines)
 
 ## Show help screen.
 help:
