@@ -78,9 +78,6 @@ clean-files:
 	@rm -rf terraform.tfstate terraform.tfstate.backup .terraform
 	@rm -rf id_rsa id_rsa.pub ssh_config
 	@rm -rf tf.out terraform.tfvars
-	@echo "You need to manually delete your certificate from AWS and then delete following files:"
-	@echo "cert-csr.json ca-csr.json ca.csr upload-gen-cert.json upload-gen-cert.sh discourse.csr *.pem"
-# FIXME: remove the csr related stuff above (the last 2 lines)
 
 ## Show help screen.
 help:

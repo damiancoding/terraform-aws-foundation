@@ -15,7 +15,7 @@ check_is_not() {
     return 0
 }
 
-check_is_not "DNS_ZONE_NAME" "example.net"
+check_is_not "DNS_ZONE_NAME" "example.com"
 check_is_not "ENVIRONMENT_NAME" "my-test"
 
 if "$fail"; then
