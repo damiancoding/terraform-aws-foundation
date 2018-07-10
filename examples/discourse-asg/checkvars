@@ -1,0 +1,24 @@
+#!/bin/bash
+
+fail=false
+bad_vars=''
+check_is_not() {
+    if [ "${!1}"x == "$2"x ]; then
+        echo "$1 should not be $2. Please change the placeholder value to a correct value." >&2
+        if ! [ "$bad_vars"x == x ]; then
+            bad_vars="$bad_vars, "
+        fi
+        bad_vars="$bad_vars$1"
+        fail=true
+        return 1
+    fi
+    return 0
+}
+
+check_is_not "DNS_ZONE_NAME" "example.com"
+check_is_not "ENVIRONMENT_NAME" "my-test"
+
+if "$fail"; then
+    echo "Erroneous variable values have been discovered: $bad_vars." >&2
+    exit 1
+fi
