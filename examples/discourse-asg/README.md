@@ -32,7 +32,6 @@ Then, we run some make targets:
 ```
 ᐅ make generate-ssh-key
 ᐅ make render-tfvars
-ᐅ make render-tfvars-step-2
 ᐅ make network
 ᐅ make plan
 ᐅ make apply
